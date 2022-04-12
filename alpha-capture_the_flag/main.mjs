@@ -1,21 +1,27 @@
 import { prototypes, utils, constants } from '/game';
 
+let myHealers;
+
 export function loop() {
+    if(!myHealers) {
+        myHealers = findMyHealers();
+        findMyRangedAttackers().forEach((rangedAttacker, i) => myHealers[i].target = rangedAttacker);
+    }
+
     findMyWorkers().forEach(worker => hervestEnergy(worker));
-    findMyAttakers().forEach(attacker => attackClosestEnemy(attacker));
+    findMyAttakers().forEach(attacker => attackEnemyNearMyFlag(attacker));
+    myHealers.forEach(healer => healEachRangedAttacker(healer));
     findMyRangedAttackers().forEach(rangedAttacker => rangedAttackClosestEnemy(rangedAttacker));
-    findMyHealers().forEach(healer => healClosestDamagedCreep(healer));
     
-    const myFirstCreep = findMyCreeps()[0];
-    captureFlag(myFirstCreep);
+    const myFlagCaptureCreep = utils.findClosestByPath(findFlag(false), findMyCreeps());
+    captureFlag(myFlagCaptureCreep);
 
     const myTowers = utils.getObjectsByPrototype(prototypes.StructureTower).filter(tower => tower.my);
     myTowers.forEach(tower => useStructureTower(tower));
 }
 
 function captureFlag(creep) {
-    const enemyFlag = utils.getObjectsByPrototype(prototypes.Flag)
-        .filter(flag => !flag.my)[0];
+    const enemyFlag = findFlag(false);
     if(creep && enemyFlag) {
         creep.moveTo(enemyFlag);
     }
@@ -27,6 +33,15 @@ function useStructureTower(tower) {
     if(closestEnemy) {
         tower.attack(closestEnemy);
     }
+}
+
+/**
+ * @param {bool} isMy
+ * @return {Flag}
+ */
+function findFlag(isMy) {
+    return utils.getObjectsByPrototype(prototypes.Flag)
+        .filter(flag => flag.my === isMy)[0];
 }
 
 /**
@@ -72,6 +87,10 @@ function hervestEnergy(creep) {
     }
 }
 
+function findEnemies() {
+    return utils.getObjectsByPrototype(prototypes.Creep).filter(creep => !creep.my);
+}
+
 /**
  * @param {{x: number, y: number}} position 
  * @returns {Creep}
@@ -91,31 +110,102 @@ function findClosestAttacker(position) {
 }
 
 /**
- * @param {Creep} creep 
+ * @param {Creep} attacker 
  */
-function attackClosestEnemy(creep) {
-    const closestEnemy = findClosestEnemy(creep);
+function attackClosestEnemy(attacker) {
+    const closestEnemy = findClosestEnemy(attacker);
     if(!closestEnemy) return;
 
-    if(creep.attack(closestEnemy) === constants.ERR_NOT_IN_RANGE) {
-        creep.moveTo(closestEnemy);
+    if(attacker.attack(closestEnemy) === constants.ERR_NOT_IN_RANGE) {
+        attacker.moveTo(closestEnemy);
     }
 }
 
-function rangedAttackClosestEnemy(creep) {
-    const closestEnemy = findClosestEnemy(creep);
-    if(!closestEnemy) return;
+/**
+ * @param {Creep} attacker
+ */
+function attackEnemyNearMyFlag(attacker) {
+    const enemysCloseToMyFlag = utils.findInRange(findFlag(true), findEnemies(), 5);
+    if(enemysCloseToMyFlag.length === 0) return;
 
-    if(creep.rangedAttack(closestEnemy) === constants.ERR_NOT_IN_RANGE) {
-        creep.moveTo(closestEnemy);
+    const closestEnemy = enemysCloseToMyFlag[0];
+    if(attacker.attack(closestEnemy) === constants.ERR_NOT_IN_RANGE) {
+        attacker.moveTo(closestEnemy);
     }
 }
 
-function healClosestDamagedCreep(creep) {
-    const closestAttacker = findClosestAttacker(creep);
+function rangedAttackClosestEnemy(rangedAttacker) {
+    const closestEnemy = findClosestEnemy(rangedAttacker);
+    if(!closestEnemy) return;
+
+    rangedAttackEfficiently(rangedAttacker);
+}
+
+/**
+ * @param {Creep} rangedAttacker 
+ */
+function rangedAttackEfficiently(rangedAttacker) {
+    const enemysInRange = utils.findInRange(rangedAttacker, findEnemies(), 3);
+    if(enemysInRange.length > 0) {
+        rangedAttacker.moveTo(findFlag(true));
+    }
+    
+    if(enemysInRange.length === 0) {
+        if(Array.isArray(rangedAttacker.healers) && rangedAttacker.healers.length > 0) {
+            const obeyHealers = rangedAttacker.healers;
+            const obeyHealersInRange = utils.findInRange(rangedAttacker, obeyHealers, 2);
+            if(obeyHealersInRange.length < obeyHealers.length) return;
+        }
+
+        const closestEnemy = findClosestEnemy(rangedAttacker);
+        rangedAttacker.moveTo(closestEnemy);
+    } else if(enemysInRange.length === 1) {
+        rangedAttacker.rangedAttack(enemysInRange[0]);
+    } else {
+        rangedAttacker.rangedMassAttack();
+    }
+
+
+}
+
+function healClosestAttacker(healer) {
+    const closestAttacker = findClosestAttacker(healer);
     if(!closestAttacker) return;
 
-    if(creep.heal(closestAttacker) === constants.ERR_NOT_IN_RANGE) {
-        creep.moveTo(closestAttacker);
+    if(healer.heal(closestAttacker) === constants.ERR_NOT_IN_RANGE) {
+        healer.moveTo(closestAttacker);
     }
+}
+
+function healEachRangedAttacker(healer) {
+    const rangedAttackers = findMyRangedAttackers();
+    if(rangedAttackers.length === 0) return;
+
+    if(!healer.target || !healer.target.hits) {
+        healer.target = utils.findClosestByPath(healer, rangedAttackers);
+    }
+
+    if(!Array.isArray(healer.target.healers)) {
+        healer.target.healers = [];
+    }
+    healer.target.healers.push(healer);
+
+    healEfficiently(healer, healer.target);
+}
+
+/**
+ * @param {Creep} healer 
+ * @param {Creep} healed 
+ */
+function healEfficiently(healer, healed) {
+    if(healer.heal(healed) === constants.ERR_NOT_IN_RANGE) {
+        healer.moveTo(healed);
+        healer.rangedHeal(healed);
+    }
+}
+
+function calcDistance(posA, posB) {
+    const dx = posA.x - posB.x;
+    const dy = posA.y - posB.y;
+    return Math.sqrt(dx * dx + dy * dy);
 }
