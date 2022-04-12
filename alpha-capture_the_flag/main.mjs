@@ -1,13 +1,32 @@
 import { prototypes, utils, constants } from '/game';
 
 export function loop() {
-    const spawner = utils.getObjectsByPrototype(prototypes.StructureSpawn)[0];
-    spawnEveryCreepRotate(spawner);
-
     findMyWorkers().forEach(worker => hervestEnergy(worker));
     findMyAttakers().forEach(attacker => attackClosestEnemy(attacker));
     findMyRangedAttackers().forEach(rangedAttacker => rangedAttackClosestEnemy(rangedAttacker));
     findMyHealers().forEach(healer => healClosestDamagedCreep(healer));
+    
+    const myFirstCreep = findMyCreeps()[0];
+    captureFlag(myFirstCreep);
+
+    const myTowers = utils.getObjectsByPrototype(prototypes.StructureTower).filter(tower => tower.my);
+    myTowers.forEach(tower => useStructureTower(tower));
+}
+
+function captureFlag(creep) {
+    const enemyFlag = utils.getObjectsByPrototype(prototypes.Flag)
+        .filter(flag => !flag.my)[0];
+    if(creep && enemyFlag) {
+        creep.moveTo(enemyFlag);
+    }
+}
+
+function useStructureTower(tower) {
+    const enemies = utils.getObjectsByPrototype(prototypes.Creep).filter(creep => !creep.my);
+    const closestEnemy = utils.findClosestByRange(tower, enemies);
+    if(closestEnemy) {
+        tower.attack(closestEnemy);
+    }
 }
 
 /**
@@ -34,27 +53,6 @@ function findMyRangedAttackers() {
 
 function findMyHealers() {
     return findMyCreeps().filter(creep => creep.body.some(bodyPart => bodyPart.type === constants.HEAL));
-}
-
-/**
- * @param {StructureSpawn} spawner 
- */
-function spawnEveryCreepRotate(spawner) {
-    const workerCnt = findMyWorkers().length;
-    const attackerCnt = findMyAttakers().length;
-    const rangedAttackerCnt = findMyRangedAttackers().length;
-    const healerCnt = findMyHealers().length;
-
-    if(workerCnt < 2) {
-        spawner.spawnCreep([constants.MOVE, constants.WORK, constants.WORK, constants.WORK, constants.CARRY]);
-    } else if(attackerCnt == 0 || attackerCnt < rangedAttackerCnt) {
-        spawner.spawnCreep([constants.MOVE, constants.ATTACK, constants.ATTACK]);
-    } else if(rangedAttackerCnt == 0 || rangedAttackerCnt <= healerCnt) {
-        spawner.spawnCreep([constants.MOVE, constants.RANGED_ATTACK, constants.RANGED_ATTACK]);
-    } else {
-        spawner.spawnCreep([constants.MOVE, constants.HEAL]);
-    }
-
 }
 
 /**
@@ -87,10 +85,9 @@ function findClosestEnemy(position) {
  * @param {{x: number, y: number}} position 
  * @returns {Creep}
  */
-function findClosestDamagesCreep(position) {
-    const myCreeps = utils.getObjectsByPrototype(prototypes.Creep).filter(creep => creep.my);
-    const damagedCreeps = myCreeps.filter(creep => creep.hits < creep.hitsMax);
-    return utils.findClosestByPath(position, damagedCreeps);
+function findClosestAttacker(position) {
+    const attackers = findMyAttakers();
+    return utils.findClosestByPath(position, attackers);
 }
 
 /**
@@ -115,10 +112,10 @@ function rangedAttackClosestEnemy(creep) {
 }
 
 function healClosestDamagedCreep(creep) {
-    const closestDamagedCreep = findClosestDamagesCreep(creep);
-    if(!closestDamagedCreep) return;
+    const closestAttacker = findClosestAttacker(creep);
+    if(!closestAttacker) return;
 
-    if(creep.heal(closestDamagedCreep) === constants.ERR_NOT_IN_RANGE) {
-        creep.moveTo(closestDamagedCreep);
+    if(creep.heal(closestAttacker) === constants.ERR_NOT_IN_RANGE) {
+        creep.moveTo(closestAttacker);
     }
 }
