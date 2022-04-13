@@ -1,7 +1,6 @@
 import { prototypes, utils, constants } from '/game';
 
 let myHealers;
-let myRangedAttackers;
 
 export function loop() {
     if(!myHealers) {
@@ -17,10 +16,7 @@ export function loop() {
     const enemies = findEnemies();
     const enemiesCloseToEnemyFlag = utils.findInRange(findFlag(false), enemies, 10);
     const enemyFarFromEnemyFlagCnt = enemies.length - enemiesCloseToEnemyFlag.length;
-    if(enemyFarFromEnemyFlagCnt > 0) {
-        const myFlagCaptureCreep = utils.findClosestByPath(findFlag(false), findMyCreeps());
-        captureFlag(myFlagCaptureCreep);
-    } else {
+    if(enemyFarFromEnemyFlagCnt == 0) {
         findMyCreeps().forEach(creep => captureFlag(creep));
     }
 
@@ -112,6 +108,19 @@ function findClosestEnemy(position) {
  * @param {{x: number, y: number}} position 
  * @returns {Creep}
  */
+function findClosestEnemyAttacker(position) {
+    const enemyAttackers = utils.getObjectsByPrototype(prototypes.Creep)
+        .filter(creep => !creep.my)
+        .filter(creep => creep.body.some(bodyPart => 
+            bodyPart.type === constants.ATTACK || bodyPart.type === constants.RANGED_ATTACK
+        ));
+    return utils.findClosestByPath(position, enemyAttackers);
+}
+
+/**
+ * @param {{x: number, y: number}} position 
+ * @returns {Creep}
+ */
 function findClosestAttacker(position) {
     const attackers = findMyAttakers();
     return utils.findClosestByPath(position, attackers);
@@ -154,9 +163,9 @@ function rangedAttackClosestEnemy(rangedAttacker) {
  */
 function rangedAttackEfficiently(rangedAttacker) {
     const enemysInRange = utils.findInRange(rangedAttacker, findEnemies(), 3);
-    if(enemysInRange.length > 0) {
-        rangedAttacker.moveTo(findFlag(true));
-    }
+    // if(enemysInRange.length > 0) {
+    //     rangedAttacker.moveTo(findFlag(true));
+    // }
     
     if(enemysInRange.length === 0) {
         if(Array.isArray(rangedAttacker.healers) && rangedAttacker.healers.length > 0) {
@@ -165,15 +174,13 @@ function rangedAttackEfficiently(rangedAttacker) {
             if(obeyHealersInRange.length < obeyHealers.length) return;
         }
 
-        const closestEnemy = findClosestEnemy(rangedAttacker);
+        const closestEnemy = findClosestEnemyAttacker(rangedAttacker);
         rangedAttacker.moveTo(closestEnemy);
     } else if(enemysInRange.length === 1) {
         rangedAttacker.rangedAttack(enemysInRange[0]);
     } else {
         rangedAttacker.rangedMassAttack();
     }
-
-
 }
 
 function healClosestAttacker(healer) {
@@ -202,13 +209,18 @@ function healEachRangedAttacker(healer) {
 }
 
 /**
- * @param {Creep} healer 
- * @param {Creep} healed 
+ * @param {Creep} healer
+ * @param {Creep} healed
  */
 function healEfficiently(healer, healed) {
-    if(healer.heal(healed) === constants.ERR_NOT_IN_RANGE) {
-        healer.moveTo(healed);
-        healer.rangedHeal(healed);
+    healer.moveTo(healed);
+    
+    if(healed.hits <= healer.hits && healed.hits < healed.hitsMax) {
+        if(healer.heal(healed) === constants.ERR_NOT_IN_RANGE) {
+            healer.rangedHeal(healed);
+        }
+    } else if(healed.hits < healed.hitsMax) {
+        healer.heal(healer);
     }
 }
 
