@@ -14,7 +14,10 @@ export function loop() {
     myHealers.forEach(healer => healEachRangedAttacker(healer));
     findMyRangedAttackers().forEach(rangedAttacker => rangedAttackClosestEnemy(rangedAttacker));
     
-    if(findEnemies().length > 0) {
+    const enemies = findEnemies();
+    const enemiesCloseToEnemyFlag = utils.findInRange(findFlag(false), enemies, 10);
+    const enemyFarFromEnemyFlagCnt = enemies.length - enemiesCloseToEnemyFlag.length;
+    if(enemyFarFromEnemyFlagCnt > 0) {
         const myFlagCaptureCreep = utils.findClosestByPath(findFlag(false), findMyCreeps());
         captureFlag(myFlagCaptureCreep);
     } else {
