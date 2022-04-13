@@ -1,12 +1,17 @@
 import { prototypes, utils, constants } from '/game';
 
 let myHealers;
+let myGuardian;
 
 export function loop() {
     if(!myHealers) {
         myHealers = findMyHealers();
         findMyRangedAttackers().forEach((rangedAttacker, i) => myHealers[i].target = rangedAttacker);
+        
+        myGuardian = myHealers.pop();
     }
+
+    guardMyFlag(myGuardian);
 
     findMyWorkers().forEach(worker => hervestEnergy(worker));
     findMyAttakers().forEach(attacker => attackEnemyNearMyFlag(attacker));
@@ -22,6 +27,17 @@ export function loop() {
 
     const myTowers = utils.getObjectsByPrototype(prototypes.StructureTower).filter(tower => tower.my);
     myTowers.forEach(tower => useStructureTower(tower));
+}
+
+/**
+ * @param {Creep} guardian 
+ */
+function guardMyFlag(guardian) {
+    myGuardian.moveTo(findFlag(true));
+
+    if(guardian.hits < guardian.hitsMax) {
+        guardian.heal(guardian);
+    }
 }
 
 function captureFlag(creep) {
