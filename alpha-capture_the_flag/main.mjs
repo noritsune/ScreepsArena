@@ -1,6 +1,7 @@
 import { prototypes, utils, constants } from '/game';
 
 let myHealers;
+let myRangedAttackers;
 
 export function loop() {
     if(!myHealers) {
@@ -13,8 +14,12 @@ export function loop() {
     myHealers.forEach(healer => healEachRangedAttacker(healer));
     findMyRangedAttackers().forEach(rangedAttacker => rangedAttackClosestEnemy(rangedAttacker));
     
-    const myFlagCaptureCreep = utils.findClosestByPath(findFlag(false), findMyCreeps());
-    captureFlag(myFlagCaptureCreep);
+    if(findEnemies().length > 0) {
+        const myFlagCaptureCreep = utils.findClosestByPath(findFlag(false), findMyCreeps());
+        captureFlag(myFlagCaptureCreep);
+    } else {
+        findMyCreeps().forEach(creep => captureFlag(creep));
+    }
 
     const myTowers = utils.getObjectsByPrototype(prototypes.StructureTower).filter(tower => tower.my);
     myTowers.forEach(tower => useStructureTower(tower));
