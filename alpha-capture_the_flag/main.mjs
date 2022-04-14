@@ -130,7 +130,10 @@ function findClosestEnemyAttacker(position) {
         .filter(creep => creep.body.some(bodyPart => 
             bodyPart.type === constants.ATTACK || bodyPart.type === constants.RANGED_ATTACK
         ));
-    return utils.findClosestByPath(position, enemyAttackers);
+
+    return enemyAttackers.length > 0
+        ? utils.findClosestByPath(position, enemyAttackers)
+        : utils.findClosestByPath(position, findEnemies());
 }
 
 /**
