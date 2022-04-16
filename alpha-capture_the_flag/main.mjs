@@ -1,4 +1,4 @@
-import { prototypes, utils, constants } from '/game';
+import { prototypes, utils, constants, visual } from '/game';
 
 let myHealers;
 let myGuardian;
@@ -10,10 +10,9 @@ export function loop() {
         
         myGuardian = myHealers.pop();
     }
-
+    
     guardMyFlag(myGuardian);
-
-    findMyWorkers().forEach(worker => hervestEnergy(worker));
+    
     findMyAttakers().forEach(attacker => attackEnemyNearMyFlag(attacker));
     myHealers.forEach(healer => healEachRangedAttacker(healer));
     findMyRangedAttackers().forEach(rangedAttacker => rangedAttackClosestEnemy(rangedAttacker));
@@ -24,9 +23,44 @@ export function loop() {
     if(enemyFarFromEnemyFlagCnt == 0) {
         findMyCreeps().forEach(creep => captureFlag(creep));
     }
-
+    
     const myTowers = utils.getObjectsByPrototype(prototypes.StructureTower).filter(tower => tower.my);
     myTowers.forEach(tower => useStructureTower(tower));
+
+    visualizeCreepsHits();
+}
+
+let creeps;
+function visualizeCreepsHits() {
+    if(!creeps) {
+        creeps = utils.getObjectsByPrototype(prototypes.Creep);
+    }
+
+    for(const creep of creeps) {
+        if(!creep.hits) {
+            creep.hitsVisual.clear();
+            creeps = creeps.filter(c => c.id !== creep.id);
+            return;
+        }
+
+        if(!creep.hitsVisual) {
+            creep.hitsVisual = new visual.Visual(10, true);
+        }
+
+        if(!creep.x) {
+            console.log(creep);
+        }
+        
+        creep.hitsVisual.clear().text(
+            creep.hits,
+            { x: creep.x, y: creep.y - 0.5 }, // above the creep
+            {
+                font: '0.5',
+                opacity: 0.7,
+                backgroundColor: '#808080',
+                backgroundPadding: '0.03'
+            });
+    }
 }
 
 /**
@@ -162,7 +196,10 @@ function attackClosestEnemy(attacker) {
  */
 function attackEnemyNearMyFlag(attacker) {
     const enemysCloseToMyFlag = utils.findInRange(findFlag(true), findEnemies(), 5);
-    if(enemysCloseToMyFlag.length === 0) return;
+    if(enemysCloseToMyFlag.length === 0) {
+        attacker.moveTo(findFlag(true));
+        return;
+    }
 
     const closestEnemy = enemysCloseToMyFlag[0];
     if(attacker.attack(closestEnemy) === constants.ERR_NOT_IN_RANGE) {
