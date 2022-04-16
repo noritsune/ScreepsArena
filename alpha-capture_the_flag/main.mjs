@@ -39,17 +39,16 @@ function visualizeCreepsHits() {
     for(const creep of creeps) {
         if(!creep.hits) {
             creep.hitsVisual.clear();
+            creep.hitsDiffVisual.clear();
             creeps = creeps.filter(c => c.id !== creep.id);
             return;
         }
 
         if(!creep.hitsVisual) {
             creep.hitsVisual = new visual.Visual(10, true);
+            creep.hitsDiffVisual = new visual.Visual(10, true);
         }
-
-        if(!creep.x) {
-            console.log(creep);
-        }
+        if(!creep.lastHits) creep.lastHits = 0;
         
         creep.hitsVisual.clear().text(
             creep.hits,
@@ -60,6 +59,21 @@ function visualizeCreepsHits() {
                 backgroundColor: '#808080',
                 backgroundPadding: '0.03'
             });
+        
+        creep.hitsDiffVisual.clear();
+        const hitsDiff = creep.hits - creep.lastHits;
+        if(hitsDiff !== 0) {
+            creep.hitsDiffVisual.text(
+                hitsDiff,
+                { x: creep.x, y: creep.y }, // above the creep
+                {
+                    font: '0.5',
+                    opacity: 0.7,
+                    backgroundColor: hitsDiff > 0 ? '#00dd00' : '#dd0000',
+                    backgroundPadding: '0.03'
+                });
+        }
+        creep.lastHits = creep.hits;
     }
 }
 
